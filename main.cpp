@@ -27,6 +27,7 @@ using std::ofstream;
 using std::ostream;
 using std::pair;
 using std::string;
+using std::string_view;
 using std::unordered_map;
 using std::unordered_set;
 using std::vector;
@@ -190,7 +191,7 @@ bool maidenhead_to_latlon(const string &grid_in, double &lat, double &lon)
 //  Also, this function is currently duplicated in SVGWriter.cpp for convenience; ideally it would be in Utils.h and shared.
 //  Also , Improve error handling and validation in both functions; currently they just return false on invalid input
 //  but don't provide details.
-//  Use a std::expected () - Required C++23 - to return either the bounding box or an error message on failure, 
+//  Use a std::expected () - Required C++23 - to return either the bounding box or an error message on failure,
 //  instead of using output parameters and a bool return value.
 
 // Obtain bounding box for locator (minlat,minlon,maxlat,maxlon)
@@ -349,8 +350,8 @@ int main(int argc, char **argv)
         cerr << "Usage: " << argv[0] << " input.csv output.svg [background.png|bg.png]\n";
         return 2;
     }
-    string infile = argv[1];
-    string outsvg = argv[2];
+    const string infile = argv[1];
+    const string outsvg = argv[2];
     string bgpath;
     bool have_bg = false;
     if (argc >= 4)
@@ -430,18 +431,26 @@ int main(int argc, char **argv)
             cerr << "Warning: couldn't read background image size; using default canvas size " << imgw << "x" << imgh << "\n";
         }
     }
-
-    ofstream ofs(outsvg);
-    if (!ofs)
+#if 1
     {
-        cerr << "Failed to open output svg: " << outsvg << "\n";
-        return 4;
-    }
-    writeSVGHeader(ofs, imgw, imgh, have_bg, bgpath);
+        SVGWriter svg(outsvg, imgw, imgh, have_bg, bgpath);
 
-    writeGridLines(ofs, imgw, imgh);
+        svg.writeGridLines(imgw, imgh);
 
-    writeSVGSquares(ofs, imgw, imgh, squares4);
+        svg.writeSquares(imgw, imgh, squares4);
+#else
+    {
+        ofstream ofs(outsvg);
+        if (!ofs)
+        {
+            cerr << "Failed to open output svg: " << outsvg << "\n";
+            return 4;
+        }
+        writeSVGHeader(ofs, imgw, imgh, have_bg, bgpath);
+
+        writeGridLines(ofs, imgw, imgh);
+
+        writeSVGSquares(ofs, imgw, imgh, squares4);
 
 #if 0
     // draw centers for unique locators
@@ -458,9 +467,11 @@ int main(int argc, char **argv)
     ofs << "  </g>\n";
 #endif
 
-    writeSVGFooter(ofs);
+        writeSVGFooter(ofs);
 
-    ofs.close();
+        ofs.close();
+#endif
+    }
     cout << "Wrote SVG: " << outsvg << " (canvas " << imgw << "x" << imgh << ")\n";
     return 0;
 }
