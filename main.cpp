@@ -360,6 +360,9 @@ int main(int argc, char **argv)
         have_bg = true;
     }
 
+    //
+    // Read input CSV and parse locators, keeping track of unique 4-char squares for drawing
+    //
     ifstream ifs(infile);
     if (!ifs)
     {
@@ -377,13 +380,17 @@ int main(int argc, char **argv)
         auto fields = parse_csv_line(line);
         if (fields.empty())
             continue;
-        string locator = trim(fields[0]);
+        const string locator = trim(fields[0]);
         if (locator.empty())
             continue;
         string loc2;
         for (char c : locator)
-            if (!isspace((unsigned char)c))
+        {
+            if (!isspace((unsigned char)c)) // skip whitespace in locator
+            {
                 loc2.push_back(c);
+            }
+        }
         if (loc2.empty())
             continue;
         if (locator_map.find(loc2) != locator_map.end())
@@ -431,46 +438,15 @@ int main(int argc, char **argv)
             cerr << "Warning: couldn't read background image size; using default canvas size " << imgw << "x" << imgh << "\n";
         }
     }
-#if 1
+
     {
         SVGWriter svg(outsvg, imgw, imgh, have_bg, bgpath);
 
         svg.writeGridLines(imgw, imgh);
 
         svg.writeSquares(imgw, imgh, squares4);
-#else
-    {
-        ofstream ofs(outsvg);
-        if (!ofs)
-        {
-            cerr << "Failed to open output svg: " << outsvg << "\n";
-            return 4;
-        }
-        writeSVGHeader(ofs, imgw, imgh, have_bg, bgpath);
 
-        writeGridLines(ofs, imgw, imgh);
-
-        writeSVGSquares(ofs, imgw, imgh, squares4);
-
-#if 0
-    // draw centers for unique locators
-    ofs << "  <g stroke=\"#000\" stroke-width=\"0.6\" fill=\"#000\">\n";
-    for (auto &kv : locator_map)
-    {
-        const string &loc = kv.first;
-        double lat = kv.second.first;
-        double lon = kv.second.second;
-        double x, y;
-        lonlat_to_pix(lon, lat, imgw, imgh, x, y);
-        ofs << "    <circle cx=\"" << std::fixed << std::setprecision(2) << x << "\" cy=\"" << y << "\" r=\"3\"/>\n";
-    }
-    ofs << "  </g>\n";
-#endif
-
-        writeSVGFooter(ofs);
-
-        ofs.close();
-#endif
+        // file closed and footer written in destructor
     }
     cout << "Wrote SVG: " << outsvg << " (canvas " << imgw << "x" << imgh << ")\n";
     return 0;
