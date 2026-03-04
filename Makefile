@@ -18,7 +18,12 @@ clean:
 	rm -f $(TARGET)
 	rm -rf *.o
 
-.PHONY: all clean
+run: ${TARGET}
+	./$(TARGET) test1.csv test1.svg	
+
+
+.PHONY: all clean run
+
 
 test: $(TARGET)
 	@echo "Running tests..."

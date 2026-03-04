@@ -33,6 +33,9 @@ using std::string;
 using std::cerr;
 using std::cout;
 
+// TODO: Make into a class with member variables for image dimensions, background, etc., and member functions for writing header, grid lines, squares, footer, etc.
+
+
 // Convert Maidenhead locator to lat/lon bounding box
 
 void writeSVGHeader(std::ofstream &ofs, int imgw, int imgh, bool have_bg, const string &bgpath)
@@ -55,16 +58,17 @@ void writeSVGHeader(std::ofstream &ofs, int imgw, int imgh, bool have_bg, const 
 
 void writeGridLines(ofstream &ofs, int imgw, int imgh)
 {
-    // draw lat/lon grid lines every 10 degrees
+    // draw lat/lon grid lines every 10 degrees - should be Major Square (Field) lines every 20deg lon x 10deg lat (? Done)
+    // Define min/max lat/lon for mercator projection
     ofs << "  <g stroke=\"#888\" stroke-width=\"0.5\" fill=\"none\">\n";
-    for (int lon = -180; lon <= 180; lon += 10)
+    for (int lon = -180; lon <= 180; lon += 20) // CONSTs
     {
         double x1, y1, x2, y2;
-        lonlat_to_pix((double)lon, -85.0, imgw, imgh, x1, y1);
-        lonlat_to_pix((double)lon, 85.0, imgw, imgh, x2, y2);
+        lonlat_to_pix((double)lon, -85.0, imgw, imgh, x1, y1);  // CONSTs
+        lonlat_to_pix((double)lon, 85.0, imgw, imgh, x2, y2);   // CONSTs
         ofs << "    <line x1=\"" << std::fixed << std::setprecision(2) << x1 << "\" y1=\"" << y1 << "\" x2=\"" << x2 << "\" y2=\"" << y2 << "\"/>\n";
     }
-    for (int lat = -80; lat <= 80; lat += 10)
+    for (int lat = -80; lat <= 80; lat += 10)   // CONSTs
     {
         double x1, y1, x2, y2;
         lonlat_to_pix(-180.0, (double)lat, imgw, imgh, x1, y1);

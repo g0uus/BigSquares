@@ -34,6 +34,17 @@ using std::vector;
 #include "SVGWriter.h"
 #include "Utils.h"
 
+//
+// TODO
+//
+// Fix all the magic constants that AI generated
+// Add band/mode into raw data
+// Add band/mode filtering
+//
+// Add Batch mode to read data once and produce multiple maps
+//
+
+// TODO make this a utility function in Utils.h; also add trim_left and trim_right variants if needed
 // Trim both ends
 static inline string trim(const string &s)
 {
@@ -96,10 +107,15 @@ vector<string> parse_csv_line(const string &line)
 // Convert Maidenhead locator to center lat/lon. Returns true on success.
 bool maidenhead_to_latlon(const string &grid_in, double &lat, double &lon)
 {
+    // remove whitespace and ignore case; also check for empty after removing whitespace
     string g;
-    for (char c : grid_in)
-        if (!isspace((unsigned char)c))
-            g.push_back(c);
+    for (const auto c : grid_in)
+    {
+        if (!isspace(static_cast<unsigned char>(c)))
+        {
+            g.push_back(toupper(static_cast<unsigned char>(c)));
+        }
+    }
     if (g.size() < 2)
         return false;
     // work with chars; accept mixed case
@@ -108,27 +124,27 @@ bool maidenhead_to_latlon(const string &grid_in, double &lat, double &lon)
     // 4 subsquare lon letter A-X, 5 subsquare lat letter A-X
     // 6 ext lon digit 0-9, 7 ext lat digit
 
-    double lon_deg = -180.0;
-    double lat_deg = -90.0;
+    auto lon_deg = -180.0;
+    auto lat_deg = -90.0;
 
-    char f_lon = toupper((unsigned char)g[0]);
-    char f_lat = toupper((unsigned char)g[1]);
+    const char f_lon = toupper(static_cast<unsigned char>(g[0]));
+    const char f_lat = toupper(static_cast<unsigned char>(g[1]));
     if (f_lon < 'A' || f_lon > 'R' || f_lat < 'A' || f_lat > 'R')
         return false;
-    int f_lon_i = f_lon - 'A';
-    int f_lat_i = f_lat - 'A';
+    const auto f_lon_i = f_lon - 'A';
+    const auto f_lat_i = f_lat - 'A';
     lon_deg += f_lon_i * 20.0;
     lat_deg += f_lat_i * 10.0;
     double lon_size = 20.0;
     double lat_size = 10.0;
     if (g.size() >= 4)
     {
-        char s_lon = g[2];
-        char s_lat = g[3];
+        const auto s_lon = g[2];
+        const auto s_lat = g[3];
         if (!isdigit((unsigned char)s_lon) || !isdigit((unsigned char)s_lat))
             return false;
-        int s_lon_i = s_lon - '0';
-        int s_lat_i = s_lat - '0';
+        const auto s_lon_i = s_lon - '0';
+        const auto s_lat_i = s_lat - '0';
         lon_deg += s_lon_i * 2.0;
         lat_deg += s_lat_i * 1.0;
         lon_size = 2.0;
@@ -136,8 +152,8 @@ bool maidenhead_to_latlon(const string &grid_in, double &lat, double &lon)
     }
     if (g.size() >= 6)
     {
-        char sub_lon = toupper((unsigned char)g[4]);
-        char sub_lat = toupper((unsigned char)g[5]);
+        const auto sub_lon = toupper((unsigned char)g[4]);
+        const auto sub_lat = toupper((unsigned char)g[5]);
         if (sub_lon < 'A' || sub_lon > 'X' || sub_lat < 'A' || sub_lat > 'X')
             return false;
         int sub_lon_i = sub_lon - 'A';
@@ -149,8 +165,8 @@ bool maidenhead_to_latlon(const string &grid_in, double &lat, double &lon)
     }
     if (g.size() >= 8)
     {
-        char ext_lon = g[6];
-        char ext_lat = g[7];
+        const auto ext_lon = g[6];
+        const auto ext_lat = g[7];
         if (!isdigit((unsigned char)ext_lon) || !isdigit((unsigned char)ext_lat))
             return false;
         int ex_lon_i = ext_lon - '0';
@@ -165,35 +181,52 @@ bool maidenhead_to_latlon(const string &grid_in, double &lat, double &lon)
     return true;
 }
 
+// NOTE:
+// the only difference between this and maidenhead_to_latlon is that we don't add half the cell size at the end,
+// and instead return the min and max lat/lon of the bounding box for the locator.
+// This is used to draw the grid squares.
+// SUGGESTION: refactor to have a single function that returns the bounding box,
+//  and then have maidenhead_to_latlon call that and compute the center from the bounding box.
+//  Also, this function is currently duplicated in SVGWriter.cpp for convenience; ideally it would be in Utils.h and shared.
+//  Also , Improve error handling and validation in both functions; currently they just return false on invalid input
+//  but don't provide details.
+//  Use a std::expected () - Required C++23 - to return either the bounding box or an error message on failure, 
+//  instead of using output parameters and a bool return value.
+
 // Obtain bounding box for locator (minlat,minlon,maxlat,maxlon)
 bool maidenhead_bbox(const string &grid_in, double &minlat, double &minlon, double &maxlat, double &maxlon)
 {
+    // remove whitespace and ignore case; also check for empty after removing whitespace
     string g;
-    for (char c : grid_in)
-        if (!isspace((unsigned char)c))
-            g.push_back(c);
+    for (const auto c : grid_in)
+    {
+        if (!isspace(static_cast<unsigned char>(c)))
+        {
+            g.push_back(toupper(static_cast<unsigned char>(c)));
+        }
+    }
     if (g.size() < 2)
         return false;
-    double lon_deg = -180.0;
-    double lat_deg = -90.0;
-    char f_lon = toupper((unsigned char)g[0]);
-    char f_lat = toupper((unsigned char)g[1]);
+    auto lon_deg = -180.0;
+    auto lat_deg = -90.0;
+    const auto f_lon = toupper((unsigned char)g[0]);
+    const auto f_lat = toupper((unsigned char)g[1]);
     if (f_lon < 'A' || f_lon > 'R' || f_lat < 'A' || f_lat > 'R')
         return false;
-    int f_lon_i = f_lon - 'A';
-    int f_lat_i = f_lat - 'A';
+    const auto f_lon_i = f_lon - 'A';
+    const auto f_lat_i = f_lat - 'A';
     lon_deg += f_lon_i * 20.0;
     lat_deg += f_lat_i * 10.0;
-    double lon_size = 20.0;
-    double lat_size = 10.0;
+    auto lon_size = 20.0;
+    auto lat_size = 10.0;
     if (g.size() >= 4)
     {
-        char s_lon = g[2];
-        char s_lat = g[3];
+        const auto s_lon = g[2];
+        const auto s_lat = g[3];
         if (!isdigit((unsigned char)s_lon) || !isdigit((unsigned char)s_lat))
             return false;
-        int s_lon_i = s_lon - '0';
-        int s_lat_i = s_lat - '0';
+        auto s_lon_i = s_lon - '0';
+        auto s_lat_i = s_lat - '0';
         lon_deg += s_lon_i * 2.0;
         lat_deg += s_lat_i * 1.0;
         lon_size = 2.0;
@@ -201,12 +234,12 @@ bool maidenhead_bbox(const string &grid_in, double &minlat, double &minlon, doub
     }
     if (g.size() >= 6)
     {
-        char sub_lon = toupper((unsigned char)g[4]);
-        char sub_lat = toupper((unsigned char)g[5]);
+        const auto sub_lon = toupper((unsigned char)g[4]);
+        const auto sub_lat = toupper((unsigned char)g[5]);
         if (sub_lon < 'A' || sub_lon > 'X' || sub_lat < 'A' || sub_lat > 'X')
             return false;
-        int sub_lon_i = sub_lon - 'A';
-        int sub_lat_i = sub_lat - 'A';
+        const auto sub_lon_i = sub_lon - 'A';
+        const auto sub_lat_i = sub_lat - 'A';
         lon_deg += sub_lon_i * (lon_size / 24.0);
         lat_deg += sub_lat_i * (lat_size / 24.0);
         lon_size /= 24.0;
@@ -214,12 +247,12 @@ bool maidenhead_bbox(const string &grid_in, double &minlat, double &minlon, doub
     }
     if (g.size() >= 8)
     {
-        char ext_lon = g[6];
-        char ext_lat = g[7];
+        const auto ext_lon = g[6];
+        const auto ext_lat = g[7];
         if (!isdigit((unsigned char)ext_lon) || !isdigit((unsigned char)ext_lat))
             return false;
-        int ex_lon_i = ext_lon - '0';
-        int ex_lat_i = ext_lat - '0';
+        const auto ex_lon_i = ext_lon - '0';
+        const auto ex_lat_i = ext_lat - '0';
         lon_deg += ex_lon_i * (lon_size / 10.0);
         lat_deg += ex_lat_i * (lat_size / 10.0);
         lon_size /= 10.0;
@@ -410,7 +443,7 @@ int main(int argc, char **argv)
 
     writeSVGSquares(ofs, imgw, imgh, squares4);
 
-    #if 0
+#if 0
     // draw centers for unique locators
     ofs << "  <g stroke=\"#000\" stroke-width=\"0.6\" fill=\"#000\">\n";
     for (auto &kv : locator_map)

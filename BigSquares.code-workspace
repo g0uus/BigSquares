@@ -1,0 +1,24 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"files.associations": {
+			"*.dbclient-js": "javascript",
+			"cmath": "cpp",
+			"numbers": "cpp",
+			"iosfwd": "cpp",
+			"string": "cpp",
+			"format": "cpp"
+		},
+		"makefile.launchConfigurations": [
+			{
+				"cwd": "/home/graham/Projects/cpp/BigSquares",
+				"binaryPath": "/home/graham/Projects/cpp/BigSquares/big_squares",
+				"binaryArgs": []
+			}
+		]
+	}
+}
