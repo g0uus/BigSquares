@@ -34,6 +34,7 @@ using std::vector;
 
 #include "SVGWriter.h"
 #include "Utils.h"
+#include "MapTools.h"
 
 //
 // TODO
@@ -44,6 +45,14 @@ using std::vector;
 //
 // Add Batch mode to read data once and produce multiple maps
 //
+
+
+#define NEW_MAP_UTILS
+
+
+#if defined(NEW_MAP_UTILS)
+    using namespace MapUtils;
+#endif
 
 // TODO make this a utility function in Utils.h; also add trim_left and trim_right variants if needed
 // Trim both ends
@@ -182,6 +191,9 @@ bool maidenhead_to_latlon(const string &grid_in, double &lat, double &lon)
     return true;
 }
 
+
+
+
 // NOTE:
 // the only difference between this and maidenhead_to_latlon is that we don't add half the cell size at the end,
 // and instead return the min and max lat/lon of the bounding box for the locator.
@@ -266,6 +278,84 @@ bool maidenhead_bbox(const string &grid_in, double &minlat, double &minlon, doub
     return true;
 }
 
+// Obtain bounding box for locator (minlat,minlon,maxlat,maxlon)
+bool maidenhead_bbox(const string &grid_in,
+    MapUtils::LatLong &minLatLong,
+    MapUtils::LatLong &maxLatLong)
+{
+    // remove whitespace and ignore case; also check for empty after removing whitespace
+    string g;
+    for (const auto c : grid_in)
+    {
+        if (!isspace(static_cast<unsigned char>(c)))
+        {
+            g.push_back(toupper(static_cast<unsigned char>(c)));
+        }
+    }
+    if (g.size() < 2)
+        return false;
+    auto lon_deg = -180.0;
+    auto lat_deg = -90.0;
+    const auto f_lon = toupper((unsigned char)g[0]);
+    const auto f_lat = toupper((unsigned char)g[1]);
+    if (f_lon < 'A' || f_lon > 'R' || f_lat < 'A' || f_lat > 'R')
+        return false;
+    const auto f_lon_i = f_lon - 'A';
+    const auto f_lat_i = f_lat - 'A';
+    lon_deg += f_lon_i * 20.0;
+    lat_deg += f_lat_i * 10.0;
+    auto lon_size = 20.0;
+    auto lat_size = 10.0;
+    if (g.size() >= 4)
+    {
+        const auto s_lon = g[2];
+        const auto s_lat = g[3];
+        if (!isdigit((unsigned char)s_lon) || !isdigit((unsigned char)s_lat))
+            return false;
+        auto s_lon_i = s_lon - '0';
+        auto s_lat_i = s_lat - '0';
+        lon_deg += s_lon_i * 2.0;
+        lat_deg += s_lat_i * 1.0;
+        lon_size = 2.0;
+        lat_size = 1.0;
+    }
+    if (g.size() >= 6)
+    {
+        const auto sub_lon = toupper((unsigned char)g[4]);
+        const auto sub_lat = toupper((unsigned char)g[5]);
+        if (sub_lon < 'A' || sub_lon > 'X' || sub_lat < 'A' || sub_lat > 'X')
+            return false;
+        const auto sub_lon_i = sub_lon - 'A';
+        const auto sub_lat_i = sub_lat - 'A';
+        lon_deg += sub_lon_i * (lon_size / 24.0);
+        lat_deg += sub_lat_i * (lat_size / 24.0);
+        lon_size /= 24.0;
+        lat_size /= 24.0;
+    }
+    if (g.size() >= 8)
+    {
+        const auto ext_lon = g[6];
+        const auto ext_lat = g[7];
+        if (!isdigit((unsigned char)ext_lon) || !isdigit((unsigned char)ext_lat))
+            return false;
+        const auto ex_lon_i = ext_lon - '0';
+        const auto ex_lat_i = ext_lat - '0';
+        lon_deg += ex_lon_i * (lon_size / 10.0);
+        lat_deg += ex_lat_i * (lat_size / 10.0);
+        lon_size /= 10.0;
+        lat_size /= 10.0;
+    }
+    minLatLong = {lat_deg, lon_deg};
+    maxLatLong = { lat_deg + lat_size, lon_deg + lon_size};
+ //   minlon = lon_deg;
+ //   minlat = lat_deg;
+ //   maxlon = lon_deg + lon_size;
+ //   maxlat = lat_deg + lat_size;
+    return true;
+}
+
+#if !defined(NEW_MAP_UTILS)
+
 // Mercator helpers
 static double clamp_lat_for_mercator(double lat)
 {
@@ -277,12 +367,13 @@ static double clamp_lat_for_mercator(double lat)
     return lat;
 }
 
-static double mercator_y(double lat)
+double mercator_y(double lat)
 {
     // lat in degrees
     double phi = clamp_lat_for_mercator(lat) * M_PI / 180.0;
     return std::log(std::tan(M_PI / 4.0 + phi / 2.0));
 }
+#endif
 
 // Read image size for PNG and BMP (basic). Returns true if size read.
 static bool read_image_size(const string &path, int &w, int &h)
@@ -328,6 +419,7 @@ static bool read_image_size(const string &path, int &w, int &h)
     return false;
 }
 
+#if !defined(NEW_MAP_UTILS)
 // Map lon/lat to image pixel coordinates (mercator)
 void lonlat_to_pix(double lon, double lat, int imgw, int imgh, double &x, double &y)
 {
@@ -342,6 +434,7 @@ void lonlat_to_pix(double lon, double lat, int imgw, int imgh, double &x, double
     double ny = (y_max - my) / (y_max - y_min);
     y = ny * imgh;
 }
+#endif
 
 int main(int argc, char **argv)
 {
@@ -356,7 +449,7 @@ int main(int argc, char **argv)
     bool have_bg = false;
     if (argc >= 4)
     {
-        bgpath = argv[3];
+        bgpath = argv[3]; // NOT VALIDATED!
         have_bg = true;
     }
 
@@ -394,7 +487,7 @@ int main(int argc, char **argv)
         if (loc2.empty())
             continue;
         if (locator_map.find(loc2) != locator_map.end())
-            continue;
+            continue; // duplicate
         double lat, lon;
         if (!maidenhead_to_latlon(loc2, lat, lon))
         {
@@ -413,14 +506,14 @@ int main(int argc, char **argv)
         if (loc2.size() >= 4)
         {
             string s4 = loc2.substr(0, 4);
-            for (char &c : s4)
+            for (char &c : loc2.substr(0, 4))
                 c = toupper((unsigned char)c);
             squares4.insert(s4);
         }
     }
 
     // determine image size
-    int imgw = 2048, imgh = 1024; // default
+    uint32_t imgw = 2048, imgh = 1024; // default
     if (have_bg)
     {
         int rw = 0, rh = 0;
@@ -440,11 +533,11 @@ int main(int argc, char **argv)
     }
 
     {
-        SVGWriter svg(outsvg, imgw, imgh, have_bg, bgpath);
+        SVGWriter svg(outsvg, imgw, imgh, bgpath);
 
-        svg.writeGridLines(imgw, imgh);
+        svg.writeGridLines();
 
-        svg.writeSquares(imgw, imgh, squares4);
+        svg.writeSquares( squares4,locator_map);
 
         // file closed and footer written in destructor
     }

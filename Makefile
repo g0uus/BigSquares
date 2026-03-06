@@ -1,14 +1,14 @@
 CXX := g++
-CXXFLAGS := -std=c++17 -O2 -Wall -Wextra
+CXXFLAGS := -std=c++23 -O2 -Wall -Wextra
 TARGET := big_squares
 SRCS := main.cpp
 
 all: $(TARGET)
 
-SVGWriter.o: SVGWriter.cpp SVGWriter.h Utils.h
+SVGWriter.o: SVGWriter.cpp SVGWriter.h Utils.h MapTools.h
 	$(CXX) $(CXXFLAGS) -c SVGWriter.cpp
 
-big_squares.o: main.cpp SVGWriter.h
+big_squares.o: main.cpp SVGWriter.h MapTools.h
 	$(CXX) $(CXXFLAGS) -c main.cpp	-o big_squares.o
 
 $(TARGET): big_squares.o SVGWriter.o
@@ -19,7 +19,9 @@ clean:
 	rm -rf *.o
 
 run: ${TARGET}
-	./$(TARGET) test1.csv test1.svg	
+	./$(TARGET) test1.csv test1.svg
+	@echo Comparing...
+	cmp test1.svg test1-orig.svg
 
 
 .PHONY: all clean run
