@@ -21,7 +21,7 @@ clean:
 run: ${TARGET}
 	./$(TARGET) test1.csv test1.svg
 	@echo Comparing...
-	cmp test1.svg test1-orig.svg
+	diff -w test1.svg test1-orig.svg
 
 
 .PHONY: all clean run
