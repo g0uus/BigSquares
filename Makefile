@@ -5,13 +5,16 @@ SRCS := main.cpp
 
 all: $(TARGET)
 
+InputFile.o: InputFile.cpp InputFile.h
+	$(CXX) $(CXXFLAGS) -c InputFile.cpp -o InputFile.o
+
 SVGWriter.o: SVGWriter.cpp SVGWriter.h Utils.h MapTools.h
 	$(CXX) $(CXXFLAGS) -c SVGWriter.cpp
 
-big_squares.o: main.cpp SVGWriter.h MapTools.h
+big_squares.o: main.cpp SVGWriter.h MapTools.h 
 	$(CXX) $(CXXFLAGS) -c main.cpp	-o big_squares.o
 
-$(TARGET): big_squares.o SVGWriter.o
+$(TARGET): big_squares.o SVGWriter.o InputFile.o
 	$(CXX) $(CXXFLAGS) -o $(TARGET) big_squares.o SVGWriter.o
 
 clean:
